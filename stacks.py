@@ -15,6 +15,7 @@ class StackingList(list):
         :param attr: The attribute to group by
         :param l: Any thing that can initialize the built-in list type
         """
+        if l is None: l = ()
         super(StackingList, self).__init__(l)  # Initialize the list
         self.attr = attr  # Store the name of the attribute we're looking for
         self.update()  # Update the stacks
@@ -61,7 +62,7 @@ class StackingList(list):
         super(StackingList, self).append(p_object)  # Append the object
         self.update(p_object)  # Do an update
 
-    def pop(self, index=None):
+    def pop(self, index=-1):
         ret = super(StackingList, self).pop(index)
 
         #Remove the returned value from the stacks
@@ -83,12 +84,12 @@ class StackingList(list):
             self.append(obj)  # Do an update for each object
 
     def __repr__(self):
-        return "StackingList({s.attr}, {l})".format(s=self,l=super(self, StackingList).__repr__())
+        return "StackingList({s.attr}, {l})".format(s=self,l=super(StackingList, self).__repr__())
 
     def __str__(self):
         ret = ""
         stacks = self.stacks  # Local variable access for speed and simplicity
         for k in stacks:
             l = [str(i) for i in stacks[k]]  # Get a list of every item in the stack as a string
-            ret += "%s: %s\n" % (str(k), str[l])  # And a append a line for this stack
+            ret += "%s: %s\n" % (str(k), str(l))  # And a append a line for this stack
         return ret

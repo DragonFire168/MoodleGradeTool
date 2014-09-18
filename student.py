@@ -5,8 +5,10 @@ import os
 import subprocess
 import datetime
 
+from pydispatch import dispatcher
 from enum import Enum
 
+STATE_SIGNAL = "StudentStateChanged"
 
 class StateError(Exception):
     pass
@@ -53,6 +55,7 @@ class Student(object):
         self.java_class = main_class
         self.classlist = otherclasses if not otherclasses is None else []
         self.directory = os.path.abspath('./' + name)
+        self.proc = None
 
         #Instansiate the test classes provided
         #We need to make sure that we don't modify the existing list
@@ -67,11 +70,11 @@ class Student(object):
     def dotests(self):
         """Performs all the tests registered with this student."""
 
-        self._state = StudentState.testing
+        self.state = StudentState.testing
         for test in self.tests:
             test.start()
 
-        self._state = StudentState.ready
+        self.state = StudentState.ready
 
     @requirestate((StudentState.not_tested, StudentState.ready))
     def dotest(self, cls):
@@ -94,7 +97,7 @@ class Student(object):
         """
         Builds the program.
         """
-        self._state = StudentState.building  # Set state to building
+        self.state = StudentState.building  # Set state to building
         try:
             with open(self.directory + "/build.log", 'a') as log:  # Open the log file
                 #Log entry header
@@ -105,7 +108,7 @@ class Student(object):
                 self.proc = subprocess.Popen(('javac', "/".join(self.java_class.split(".")) + ".java"),
                                              cwd=self.directory, stdout=log, stderr=subprocess.STDOUT)
         except Exception as ex:
-            self._state = StudentState.build_error
+            self.state = StudentState.build_error
             raise ex
 
     @property
@@ -135,13 +138,19 @@ class Student(object):
         :rtype: StudentState
         """
         # If the state is building we need to check to see if there was a build error
-        if self._state == StudentState.building and not self.proc.poll() is None:
+        if self._state == StudentState.building and self.proc and not self.proc.poll() is None:
             if self.proc.returncode == 0:
-                self._state = StudentState.not_tested  # Set state to not tested when build succeeds
+                self.state = StudentState.not_tested  # Set state to not tested when build succeeds
             else:
-                self._state = StudentState.build_error
+                self.state = StudentState.build_error
 
         return self._state
+
+    @state.setter
+    def state(self, value):
+        assert isinstance(value, StudentState)
+        self._state = value
+        dispatcher.send(signal=STATE_SIGNAL, sender=self)
 
     def __repr__(self):
         return "Student({}, {})".format(self.name, self.java_class)

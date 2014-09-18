@@ -17,14 +17,28 @@ import re
 import student
 import argparse
 
+from stacks import StackingList
 from testing import tests, testers
 
+from pydispatch import dispatcher
 from threading import Thread
 from Queue import Queue
 
 MAX_BUILDS = 5
 
 sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', 0)  # Force unbuffered stdout
+
+handlers = []  # Holds signal handlers
+
+def register_list(l):
+    assert hasattr(l, 'update')
+    def updatestate(sender):
+        try:
+            l.update(sender)
+        except ValueError:
+            pass  # ValueError is raised if the list doesn't hold that particular item, it can be ignored in this case
+    dispatcher.connect(updatestate, signal=student.STATE_SIGNAL)
+    handlers.append((l, updatestate))
 
 def main():
 
@@ -44,6 +58,8 @@ def main():
 
     for k, v in paths.iteritems():
         paths[k] = os.path.abspath(v)
+
+    path = paths['folder']
 
     # Fixed comparison to leverage negative indexes -Phillip Wall
     if '.zip' == path[-4:]:
@@ -77,6 +93,7 @@ def main():
 
     student.Student.tests = tlist  # Set the default tests for the student class
     students = prepare_directory(path)  # Prepare the grading directory
+    register_list(students)  # Register the list to handle state change notifications
 
     q = Queue(maxsize=MAX_BUILDS)  # Set up the build queue
     t = Thread(target=do_builds, args=(students, q))  # Set up the building thread
@@ -86,6 +103,7 @@ def main():
     while t.isAlive() or not q.empty():
         #Get the next student in the list
         currentstudent = q.get()
+        print students
         assert isinstance(currentstudent, student.Student)
 
         #Print out the information
@@ -284,7 +302,7 @@ def prepare_directory(path):
         #Doing it this way allows for multifile java projects
         tmp.setdefault(studentname, []).append(className)
 
-    res = []
+    res = StackingList("state")
     for name, cl in tmp.iteritems():
         main = cl.pop(0)  # Assume first class is the main one
         res.append(student.Student(name, main, cl))
